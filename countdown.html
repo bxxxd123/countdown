@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title id="page-title">倒數計時器</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #FFFFFF;
+    --text-primary: #1a1a1a;
+    --text-muted: rgba(26,26,26,0.5);
+    --box-color: #E8845A;
+    --num-color: #FFFFFF;
+  }
+
+  body[data-theme="dark"] {
+    --bg: #0d0d0f;
+    --text-primary: #f0f0f4;
+    --text-muted: rgba(240,240,244,0.5);
+  }
+
+  body {
+    min-height: 100vh;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Noto Sans TC', sans-serif;
+    overflow: hidden;
+    position: relative;
+    transition: background 0.3s, color 0.3s;
+    padding: 32px 20px;
+  }
+
+  .wrapper {
+    width: 100%;
+    max-width: 900px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  #title-text {
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    color: var(--text-primary);
+    text-align: center;
+    margin-bottom: 48px;
+    min-height: 1.4em;
+    transition: color 0.3s;
+    word-break: break-word;
+  }
+
+  .units {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: clamp(8px, 1.8vw, 24px);
+    width: 100%;
+  }
+
+  .unit {
+    aspect-ratio: 1;
+    border-radius: 16px;
+    background: var(--box-color);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(10px, 2vw, 24px);
+    gap: clamp(8px, 1.5vw, 18px);
+    transition: background 0.3s;
+    overflow: hidden;
+  }
+
+  .num {
+    font-family: 'DM Mono', monospace;
+    font-size: clamp(38px, 7.5vw, 84px);
+    font-weight: 500;
+    color: var(--num-color);
+    line-height: 1;
+    text-align: center;
+    transition: color 0.3s;
+  }
+  .num.pop {
+    animation: numPop 0.28s ease;
+  }
+  @keyframes numPop {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.07); }
+    100% { transform: scale(1); }
+  }
+
+  .label {
+    font-size: clamp(9px, 1.3vw, 13px);
+    font-weight: 500;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--num-color);
+    opacity: 0.92;
+    text-align: center;
+    transition: color 0.3s;
+  }
+
+  .done-msg {
+    font-size: clamp(22px, 5vw, 42px);
+    font-weight: 300;
+    color: var(--text-primary);
+    letter-spacing: 0.12em;
+    text-align: center;
+    display: none;
+    margin-top: 24px;
+    animation: fadeIn 0.6s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  .hint {
+    position: fixed;
+    bottom: 22px;
+    width: 100%;
+    text-align: center;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    color: var(--text-muted);
+    z-index: 1;
+    opacity: 0.55;
+    pointer-events: none;
+  }
+
+  @media (max-width: 640px) {
+    #title-text {
+      font-size: 16px;
+      margin-bottom: 32px;
+    }
+    .units { gap: 8px; }
+  }
+
+  /* ========== Settings Panel ========== */
+  #config-panel {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    padding: 16px;
+  }
+  #config-panel.open { display: flex; }
+
+  .panel-card {
+    background: #16161a;
+    border: 0.5px solid rgba(255,255,255,0.1);
+    border-radius: 18px;
+    padding: 28px;
+    width: min(440px, 100%);
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    color: #f0f0f4;
+    animation: slideUp 0.2s ease;
+  }
+  @keyframes slideUp { from { opacity:0; transform:translateY(10px);} to {opacity:1; transform:translateY(0);} }
+
+  .panel-card h2 {
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .field { display: flex; flex-direction: column; gap: 7px; }
+  .field label {
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(240,240,244,0.5);
+  }
+  .field input[type="text"],
+  .field input[type="datetime-local"] {
+    background: rgba(255,255,255,0.04);
+    border: 0.5px solid rgba(255,255,255,0.1);
+    border-radius: 9px;
+    color: #f0f0f4;
+    font-family: 'Noto Sans TC', sans-serif;
+    font-size: 14px;
+    padding: 10px 12px;
+    outline: none;
+    transition: border-color 0.2s;
+    color-scheme: dark;
+  }
+  .field input:focus { border-color: #7C6FF7; }
+
+  .theme-toggle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    background: rgba(255,255,255,0.04);
+    border: 0.5px solid rgba(255,255,255,0.08);
+    border-radius: 9px;
+    padding: 3px;
+  }
+  .theme-toggle button {
+    padding: 8px;
+    border: none;
+    background: transparent;
+    color: rgba(240,240,244,0.55);
+    border-radius: 7px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    letter-spacing: 0.05em;
+    transition: background 0.2s, color 0.2s;
+  }
+  .theme-toggle button.active {
+    background: rgba(255,255,255,0.08);
+    color: #f0f0f4;
+  }
+
+  .color-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+  .swatch {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2.5px solid transparent;
+    transition: transform 0.15s, border-color 0.15s;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .swatch:hover { transform: scale(1.18); }
+  .swatch.active { border-color: #fff; }
+  .swatch[data-c="#FFFFFF"], .swatch[data-c="#ffffff"] {
+    box-shadow: inset 0 0 0 0.5px rgba(0,0,0,0.15);
+  }
+
+  .custom-color {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+  }
+  .custom-color input[type="color"] {
+    width: 30px; height: 30px;
+    padding: 2px;
+    border: 0.5px solid rgba(255,255,255,0.15);
+    border-radius: 50%;
+    cursor: pointer;
+    background: transparent;
+    flex-shrink: 0;
+  }
+  .custom-color span {
+    font-size: 11px;
+    color: rgba(240,240,244,0.5);
+    letter-spacing: 0.06em;
+  }
+
+  /* Preview within panel */
+  .preview-row {
+    display: flex;
+    gap: 6px;
+    padding: 12px;
+    background: var(--preview-bg, #FFFFFF);
+    border-radius: 10px;
+    transition: background 0.3s;
+  }
+  .preview-box {
+    flex: 1;
+    aspect-ratio: 1;
+    border-radius: 8px;
+    background: var(--preview-box, #E8845A);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--preview-num, #FFFFFF);
+    transition: background 0.3s, color 0.3s;
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 4px;
+  }
+  .btn {
+    padding: 10px 22px;
+    border-radius: 9px;
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    border: none;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-ghost {
+    background: transparent;
+    border: 0.5px solid rgba(255,255,255,0.12);
+    color: rgba(240,240,244,0.55);
+  }
+  .btn-ghost:hover { opacity: 0.7; }
+  .btn-primary {
+    background: #7C6FF7;
+    color: #fff;
+    font-weight: 500;
+  }
+  .btn-primary:hover { opacity: 0.85; }
+
+  .share-box {
+    display: none;
+    background: rgba(255,255,255,0.03);
+    border: 0.5px solid rgba(255,255,255,0.08);
+    border-radius: 9px;
+    padding: 10px 13px;
+    font-size: 11px;
+    color: rgba(240,240,244,0.55);
+    word-break: break-all;
+    line-height: 1.6;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .share-box:hover { border-color: #7C6FF7; }
+  .share-box.visible { display: block; }
+  .share-label {
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(240,240,244,0.5);
+    margin-bottom: 5px;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrapper">
+  <div id="title-text"></div>
+
+  <div class="units" id="counter">
+    <div class="unit">
+      <div class="num" id="d">00</div>
+      <div class="label">days</div>
+    </div>
+    <div class="unit">
+      <div class="num" id="h">00</div>
+      <div class="label">hours</div>
+    </div>
+    <div class="unit">
+      <div class="num" id="m">00</div>
+      <div class="label">minutes</div>
+    </div>
+    <div class="unit">
+      <div class="num" id="s">00</div>
+      <div class="label">seconds</div>
+    </div>
+  </div>
+
+  <div class="done-msg" id="done-msg">🎉 時間到了！</div>
+</div>
+
+<p class="hint">雙擊任意處進行設定</p>
+
+<!-- Config Panel -->
+<div id="config-panel" role="dialog" aria-modal="true" aria-label="倒數設定">
+  <div class="panel-card">
+    <h2>設定倒數</h2>
+
+    <div class="field">
+      <label>標題文字（選填）</label>
+      <input type="text" id="inp-title" placeholder="例：距離婚禮 · 距離旅行" maxlength="30">
+    </div>
+
+    <div class="field">
+      <label>目標日期時間</label>
+      <input type="datetime-local" id="inp-date">
+    </div>
+
+    <div class="field">
+      <label>背景</label>
+      <div class="theme-toggle" id="theme-toggle">
+        <button type="button" data-bg="light" class="active">淺色</button>
+        <button type="button" data-bg="dark">深色</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>方塊顏色</label>
+      <div class="color-grid" id="box-swatches"></div>
+      <div class="custom-color">
+        <input type="color" id="inp-box" value="#E8845A">
+        <span>自訂方塊色</span>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>數字顏色</label>
+      <div class="color-grid" id="num-swatches"></div>
+      <div class="custom-color">
+        <input type="color" id="inp-num" value="#FFFFFF">
+        <span>自訂數字色</span>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>即時預覽</label>
+      <div class="preview-row" id="preview">
+        <div class="preview-box">0</div>
+        <div class="preview-box">0</div>
+        <div class="preview-box">0</div>
+        <div class="preview-box">0</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="share-label" id="share-label" style="display:none">分享連結（點擊複製）</div>
+      <div class="share-box" id="share-url" role="button" tabindex="0"></div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closePanel()">取消</button>
+      <button class="btn btn-primary" onclick="applySettings()">套用</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const BOX_PRESETS = [
+  '#E8845A','#E97B8B','#F4A24B','#F5C04E',
+  '#5DC2A4','#6DAEDB','#7C6FF7','#B07FE0',
+  '#2C2C30','#888888'
+];
+const NUM_PRESETS = [
+  '#FFFFFF','#FEF3C7','#FFF5EB','#FFE8D6',
+  '#000000','#1F2937','#3B2A20','#E8845A'
+];
+
+let targetDate = null;
+let startDate  = null;
+let ticker     = null;
+
+let currentBg     = 'light';
+let currentBox    = '#E8845A';
+let currentNum    = '#FFFFFF';
+
+function pad(n) { return String(n).padStart(2, '0'); }
+
+function applyTheme(bg) {
+  currentBg = bg;
+  document.body.dataset.theme = bg;
+  document.querySelectorAll('#theme-toggle button').forEach(b => {
+    b.classList.toggle('active', b.dataset.bg === bg);
+  });
+  updatePreview();
+}
+
+function applyBoxColor(hex) {
+  currentBox = hex;
+  document.documentElement.style.setProperty('--box-color', hex);
+  document.querySelectorAll('#box-swatches .swatch').forEach(el => {
+    el.classList.toggle('active', el.dataset.c.toLowerCase() === hex.toLowerCase());
+  });
+  const inp = document.getElementById('inp-box');
+  if (inp) inp.value = hex;
+  updatePreview();
+}
+
+function applyNumColor(hex) {
+  currentNum = hex;
+  document.documentElement.style.setProperty('--num-color', hex);
+  document.querySelectorAll('#num-swatches .swatch').forEach(el => {
+    el.classList.toggle('active', el.dataset.c.toLowerCase() === hex.toLowerCase());
+  });
+  const inp = document.getElementById('inp-num');
+  if (inp) inp.value = hex;
+  updatePreview();
+}
+
+function updatePreview() {
+  const pv = document.getElementById('preview');
+  if (!pv) return;
+  pv.style.setProperty('--preview-bg',  currentBg === 'dark' ? '#0d0d0f' : '#FFFFFF');
+  pv.style.setProperty('--preview-box', currentBox);
+  pv.style.setProperty('--preview-num', currentNum);
+}
+
+function buildSwatches(containerId, presets, onPick) {
+  const row = document.getElementById(containerId);
+  row.innerHTML = '';
+  presets.forEach(c => {
+    const s = document.createElement('div');
+    s.className = 'swatch';
+    s.style.background = c;
+    s.dataset.c = c;
+    s.title = c;
+    s.onclick = () => onPick(c);
+    row.appendChild(s);
+  });
+}
+
+function tick() {
+  if (!targetDate) return;
+  const now = Date.now();
+  let diff  = targetDate - now;
+
+  if (diff <= 0) {
+    ['d','h','m','s'].forEach(id => document.getElementById(id).textContent = '00');
+    document.getElementById('done-msg').style.display = 'block';
+    document.getElementById('counter').style.display  = 'grid';
+    clearInterval(ticker);
+    return;
+  }
+
+  const days = Math.floor(diff / 86400000); diff -= days * 86400000;
+  const hrs  = Math.floor(diff / 3600000);  diff -= hrs  * 3600000;
+  const mins = Math.floor(diff / 60000);    diff -= mins * 60000;
+  const secs = Math.floor(diff / 1000);
+
+  const vals = { d: pad(days), h: pad(hrs), m: pad(mins), s: pad(secs) };
+  Object.entries(vals).forEach(([id, val]) => {
+    const el = document.getElementById(id);
+    if (el.textContent !== val) {
+      el.textContent = val;
+      el.classList.remove('pop');
+      void el.offsetWidth;
+      el.classList.add('pop');
+    }
+  });
+}
+
+function startTicker() {
+  clearInterval(ticker);
+  tick();
+  ticker = setInterval(tick, 1000);
+}
+
+function buildShareURL(dateISO, title, bg, box, num) {
+  const base = location.href.split('?')[0];
+  const p = new URLSearchParams();
+  p.set('date', dateISO);
+  if (title) p.set('title', title);
+  p.set('bg', bg);
+  p.set('box', box.replace('#',''));
+  p.set('num', num.replace('#',''));
+  return base + '?' + p.toString();
+}
+
+function openPanel() {
+  if (targetDate) {
+    const offsetMs = new Date().getTimezoneOffset() * 60000;
+    const local = new Date(targetDate - offsetMs).toISOString().slice(0, 16);
+    document.getElementById('inp-date').value = local;
+  }
+  document.getElementById('inp-title').value = document.getElementById('title-text').textContent;
+  document.getElementById('inp-box').value = currentBox;
+  document.getElementById('inp-num').value = currentNum;
+
+  document.querySelectorAll('#box-swatches .swatch').forEach(el => {
+    el.classList.toggle('active', el.dataset.c.toLowerCase() === currentBox.toLowerCase());
+  });
+  document.querySelectorAll('#num-swatches .swatch').forEach(el => {
+    el.classList.toggle('active', el.dataset.c.toLowerCase() === currentNum.toLowerCase());
+  });
+  document.querySelectorAll('#theme-toggle button').forEach(b => {
+    b.classList.toggle('active', b.dataset.bg === currentBg);
+  });
+  updatePreview();
+
+  const shareEl = document.getElementById('share-url');
+  const labelEl = document.getElementById('share-label');
+  if (targetDate) {
+    const title = document.getElementById('title-text').textContent;
+    shareEl.textContent = buildShareURL(new Date(targetDate).toISOString(), title, currentBg, currentBox, currentNum);
+    shareEl.classList.add('visible');
+    labelEl.style.display = 'block';
+  } else {
+    shareEl.classList.remove('visible');
+    labelEl.style.display = 'none';
+  }
+
+  document.getElementById('config-panel').classList.add('open');
+  setTimeout(() => document.getElementById('inp-title').focus(), 50);
+}
+
+function closePanel() {
+  document.getElementById('config-panel').classList.remove('open');
+}
+
+function applySettings() {
+  const titleVal = document.getElementById('inp-title').value.trim();
+  const dateVal  = document.getElementById('inp-date').value;
+
+  document.getElementById('title-text').textContent = titleVal;
+  document.title = titleVal || '倒數計時器';
+
+  // Theme/colors are already live (changed on pick); ensure they're applied
+  applyTheme(currentBg);
+  applyBoxColor(currentBox);
+  applyNumColor(currentNum);
+
+  if (dateVal) {
+    startDate  = Date.now();
+    targetDate = new Date(dateVal).getTime();
+    document.getElementById('done-msg').style.display = 'none';
+    document.getElementById('counter').style.display  = 'grid';
+
+    // Start the ticker FIRST, before doing anything that could throw
+    startTicker();
+
+    // URL update — wrapped in try/catch because some environments (file://, sandboxed iframe)
+    // throw SecurityError on history.replaceState
+    try {
+      const iso = new Date(dateVal).toISOString();
+      const params = new URLSearchParams();
+      params.set('date', iso);
+      if (titleVal) params.set('title', titleVal);
+      params.set('bg',  currentBg);
+      params.set('box', currentBox.replace('#',''));
+      params.set('num', currentNum.replace('#',''));
+      history.replaceState(null, '', '?' + params.toString());
+    } catch (e) {
+      // safe to ignore — countdown still works
+    }
+  }
+  closePanel();
+}
+
+// ----- Init -----
+buildSwatches('box-swatches', BOX_PRESETS, applyBoxColor);
+buildSwatches('num-swatches', NUM_PRESETS, applyNumColor);
+
+// Copy share URL
+document.getElementById('share-url').addEventListener('click', async function() {
+  const text = this.textContent.trim();
+  try {
+    await navigator.clipboard.writeText(text);
+    const orig = text;
+    this.textContent = '✓ 已複製到剪貼簿';
+    setTimeout(() => { this.textContent = orig; }, 1600);
+  } catch(e) {
+    const range = document.createRange();
+    range.selectNodeContents(this);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+});
+
+// Theme toggle buttons
+document.querySelectorAll('#theme-toggle button').forEach(b => {
+  b.addEventListener('click', () => applyTheme(b.dataset.bg));
+});
+
+// Custom color inputs
+document.getElementById('inp-box').addEventListener('input', e => applyBoxColor(e.target.value));
+document.getElementById('inp-num').addEventListener('input', e => applyNumColor(e.target.value));
+
+// Double-click to open
+document.addEventListener('dblclick', e => {
+  const panel = document.getElementById('config-panel');
+  if (!panel.classList.contains('open') && !panel.contains(e.target)) openPanel();
+});
+
+// Backdrop click to close
+document.getElementById('config-panel').addEventListener('click', e => {
+  if (e.target.id === 'config-panel') closePanel();
+});
+
+// Escape to close
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closePanel();
+});
+
+// Read URL params
+const params = new URLSearchParams(location.search);
+const pDate  = params.get('date');
+const pTitle = params.get('title') || '';
+const pBg    = params.get('bg')    || 'light';
+const pBox   = params.get('box')   ? '#' + params.get('box') : '#E8845A';
+const pNum   = params.get('num')   ? '#' + params.get('num') : '#FFFFFF';
+
+if (pTitle) {
+  document.getElementById('title-text').textContent = pTitle;
+  document.title = pTitle;
+}
+applyTheme(pBg === 'dark' ? 'dark' : 'light');
+applyBoxColor(pBox);
+applyNumColor(pNum);
+
+if (pDate) {
+  targetDate = new Date(pDate).getTime();
+  startDate  = null;
+  startTicker();
+}
+</script>
+</body>
+</html>
